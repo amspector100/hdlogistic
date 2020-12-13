@@ -2,6 +2,7 @@ import numpy as np
 import scipy
 from scipy.optimize import minimize
 from scipy.stats import norm
+from cubature import cubature
 
 def hinge(t):
     return max(t,0)
@@ -23,10 +24,12 @@ def rho_prime(t):
 def solve_kappa(beta0, gamma0):
     def h(t):
         def integrand1(x):
-            f1(x)*norm.pdf(x[0])*norm.pdf(x[1])
+            f1(t,x,beta0,gamma0)*norm.pdf(x[0])*norm.pdf(x[1])
         def integrand2(x):
-            f2(x)*norm.pdf(x[0])*norm.pdf(x[1])
-        return cubature(integrand1)+cubature(integrand2)
+            f2(t,x,beta0,gamma0)*norm.pdf(x[0])*norm.pdf(x[1])
+        val1,err1 = cubature(integrand1,2,1,[-8,8],[8,8])
+        val2,err2 = cubature(integrand2,2,1,[-8,8],[8,8])
+        return(val1+val2)
     return(minimize(fun = h, x0=[0,0], method = 'L-BFGS-B'))
 
 print(solve_kappa(0,0))
