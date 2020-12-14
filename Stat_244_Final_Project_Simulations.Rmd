@@ -1,0 +1,189 @@
+---
+title: "Stat 244 Final Project"
+author: "Asher Spector"
+date: "12/14/2020"
+output: html_document
+---
+
+## Setup
+
+```{r}
+# Running this script also requires glmhd
+# but we do not load it to prevent namespace errors.
+library(tidyverse)
+```
+
+## Plotting alpha, sigma, lambda
+
+In this section, we plot $\kappa, \gamma, h_{\mathrm{MLE}}$ against each other. The *glmhd* package contains functions which can solve such systems of equations involving intractable integrals (based on turn on the *cubature* package for low-dimensional integration).
+
+```{r}
+# Create grid
+kappa_vals = c(0.05, 0.1, 0.15, 0.2)
+max_gammas = c(15, 9.5, 5, 3) # Hard-coded hmles because it's hard to compute hmle in R
+#kappa_vals = c(0.2)
+#max_gammas = c(4)
+gamma_vals = c(2, 4, 6, 8, 10)
+output = tibble(
+  kappa=numeric(),
+  gamma=numeric(),
+  alpha=numeric(),
+  sigma=numeric(),
+  lambda=numeric(),
+)
+
+# Iterate through and solve system of equations.
+# This can be pretty slow!
+for (index in 1:length(kappa_vals)) {
+  kappa = kappa_vals[index]
+  max_gamma = max_gammas[index]
+  for (gamma in gamma_vals) {
+    if (gamma < max_gamma) {
+      # Pattern: alpha, lambda, sigma
+      cat("At gamma=", gamma, "kappa=", kappa)
+      params <- glmhd::find_param(
+        kappa=kappa, 
+        gamma=gamma, 
+        intercept=FALSE
+      )
+      output <- output %>% add_row(
+        kappa=kappa, 
+        gamma=gamma,
+        alpha=params[1],
+        lambda=params[2],
+        sigma=params[3]
+      ) 
+    }
+  }
+}
+
+# write.table(output, "cache/param.csv")
+## See the python notebook for the script plotting based on these values.
+
+```
+
+### Simulation Results
+
+We begin by creating a general function for sampling covariates and a binary response and then fitting a logistic regression model. We let $X \sim \mathcal{N}(0, \Sigma)$ where $X$ follows a non-stationary Markov chain. In particular, we can represent $X_1 \sim \mathcal{N}(0, 1)$ and $X_j = \sqrt{1 - \rho_j^2}  Z_j + \rho_j X_{j-1}$ with $Z_j \stackrel{\mathrm{i.i.d.}}{\sim} \mathcal{N}(0,1)$. We sample $\rho_j \stackrel{\mathrm{i.i.d.}}{\sim} \mathrm{Uniform}(0, 1)$.
+
+```{r}
+
+# Samples from gaussian Markov chain
+sample_gaussian_markov <- function(n=500, p=75) {
+  # Step 1: Create the covariance matrix
+  log_rhos = c(0, log(runif(p-1)))
+  cumrhos = cumsum(log_rhos)
+  cumrhos = do.call(rbind, replicate(p, cumrhos, simplify=FALSE))
+  log_corrs = -1*abs(t(cumrhos) - cumrhos)
+  Sigma = exp(log_corrs)
+
+  # Step 2: Sample the normal data
+  X = MASS::mvrnorm(n=n, mu=replicate(p, 0), Sigma=Sigma)
+  return(list(X=X, Sigma=Sigma))
+}
+# Parameters:
+# n, p: number of data points and covariates
+# xdist: either 'gausisan' for gaussian markov chain or 't' for heavy-tailed markov chain.
+# ydist: binomial for logistic response, probit for probit response.
+# signal: non-null covariates equal signal / sqrt(p).
+sample_data_and_fit <- function(n=500, p=100, signal=1, xdist='gaussian', ydist='binomial') {
+  # Step 1: Sampling / data generating process
+  # Create 50% sparse coefficients
+  beta = replicate(p, 0)
+  beta[1:(p/2)] = signal / sqrt(p)
+  # Sample X data
+  if (xdist == 'gaussian') {
+    X = sample_gaussian_markov(n=n, p=p)$X
+  } else {
+    #X = sample_t_markov(n=n, p=p)
+  }
+  # Sample y data
+  mu = X %*% beta
+  if (ydist == 'binomial') {
+    y = rbinom(n, 1, 1/(1 + exp(-mu)))
+  } else {
+    y = mu + rnorm(p)
+    y = y > 0
+  }
+  
+  # Step 2: Fit regular logistic regression
+  fit <- glm(y ~ X + 0, family=binomial, x=TRUE, y=TRUE)
+  return(list(fit=fit))
+}
+
+# Produces summaries of p values, bias, etc for adjusted vs. regular
+compare_adjusted_versus_regular <- function(nreps=5, ...) {
+
+  # We parallelize the adjusted_pval calls on 10 cores  
+  # (note this will NOT run on Windows since it uses forking
+  partial_function <- function(seed) {
+    set.seed(seed)
+    glm_fit = sample_data_and_fit(...)$fit
+    adjusted_fit = glmhd::adjust_glm(glm_fit)
+    return(list(fit=glm_fit, adjusted_fit=adjusted_fit))
+  }
+
+  all_fits = list()
+  start_time = proc.time()
+  for (i in 1:nreps) {
+    cat("At time=", proc.time()-start_time, " starting seed=", i, "\n", sep='')
+    all_fits[[i]] = partial_function(i)
+  }
+  #all_fits = parallel::mclapply(1:nreps, partial_function, mc.cores=10)
+  return(all_fits)
+
+}
+
+# Random number generators
+all_fits = compare_adjusted_versus_regular(nreps=5, signal=5, n=500, p=50)
+
+```
+
+
+```{r}
+
+# Holds all of the data --- sorry this is inelegant,
+# I couldn't think of a better way to do it 
+null_pvals = list()
+adj_null_pvals = list()
+null_coeffs = list()
+nonnull_coeffs = list()
+adj_null_coeffs = list()
+adj_nonnull_coeffs = list()
+
+# Analyze the fits
+for (i in 1:length(all_fits)) {
+  # Retrieve
+  glm_fit_summary = summary(all_fits[[i]]$fit)
+  adjusted_fit_summary = summary(all_fits[[i]]$adjusted_fit)
+  p = dim(glm_fit_summary$coefficients)[1]
+
+  # P-values
+  null_pvals[[i]] = glm_fit_summary$coefficients[(p/2 + 1):p, 4]
+  adj_null_pvals[[i]] = adjusted_fit_summary$coefficients[(p/2 + 1):p, 4]
+  
+  # Coefficient values, null and non-null
+  null_coeffs[[i]] = glm_fit_summary$coefficients[(p/2 + 1):p, 1]
+  nonnull_coeffs[[i]] = glm_fit_summary$coefficients[1:(p/2), 1]
+  adj_null_coeffs[[i]] = adjusted_fit_summary$coefficients[(p/2 + 1):p, 1]
+  adj_nonnull_coeffs[[i]] = adjusted_fit_summary$coefficients[1:(p/2), 1]
+}
+
+# Process null p-values and plot
+process_data <- function(df, null=TRUE, adj=FALSE) {
+  df = data.frame(t(bind_cols(df))) %>%
+    pivot_longer(cols=everything(), names_to="variable", values_to="p")
+  df$null = null
+  df$adj = ifelse(adj, "Adjusted", "Classical")
+  return(df)
+}
+all_pvals = bind_rows(process_data(adj_null_pvals, adj=TRUE), process_data(null_pvals))
+
+pval_plot <- ggplot(all_pvals %>% filter(variable=='X1'), aes(x=p, color=adj, fill=adj)) +
+  geom_histogram(aes(y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..]), bins=10) +
+  facet_wrap("~adj") +
+  labs(x='p', y='Proportion')
+print(pval_plot)
+```
+
+

@@ -12,7 +12,6 @@ integrate2_normal <- function(f, ...){
 ## kapp
 solve_kappa <- function(rho_prime, beta0, gamma0){
   h <- function(t){
-    print("Starting cubature...")
     f1 <- function(x) hinge(t[1] + t[2] * x[1] - x[2])^2 * rho_prime(beta0 + gamma0 * x[1])
     f2 <- function(x) hinge(-t[1] - t[2] * x[1] - x[2])^2 * (1 - rho_prime(beta0 + gamma0 * x[1]))
     integrate2_normal(f1) + integrate2_normal(f2)
