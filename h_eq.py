@@ -27,8 +27,8 @@ def solve_kappa(beta0, gamma0):
             return(f1(t,x,beta0,gamma0)*norm.pdf(x[0])*norm.pdf(x[1]))
         def integrand2(x):
             return(f2(t,x,beta0,gamma0)*norm.pdf(x[0])*norm.pdf(x[1]))
-        val1,err1 = cubature(integrand1,2,1,[-8,8],[8,8])
-        val2,err2 = cubature(integrand2,2,1,[-8,8],[8,8])
+        val1,err1 = cubature(integrand1,2,1,[-8,-8],[8,8])
+        val2,err2 = cubature(integrand2,2,1,[-8,-8],[8,8])
         return(val1+val2)
     return(minimize(fun = h, x0=[0,0], method = 'L-BFGS-B'))
 
