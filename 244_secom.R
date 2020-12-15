@@ -1,18 +1,27 @@
 library(glmhd)
 library(DescTools)
 Y <- secomy$V2
-# randomly samples 100 indices 
+
+
+show_condition <- function(code){
+  tryCatch(code,
+           error = function(c) "error",
+           warning = function(c) "warning",
+           message = function(c)"message"
+  )
+}
 
 glmhd <- function(){
+  # randomly samples 100 indices 
   index <- sample(474, 100, replace = FALSE, prob = NULL)
   dt <- secomX[,index]
-  df <- data.frame(y = Y, x = secomX)
   fit <- glm(Y~.+0, data = dt, family = binomial, x = TRUE, y = TRUE)
-  fit2 <- adjust_glm(fit, verbose = FALSE, echo = TRUE)
-  
-  if(exists("fit2")){
+  fit2 <- show_condition(adjust_glm(fit, verbose = FALSE, echo = TRUE))
+  if(fit2!="error"){
+    print('hello there')
     s1 <- summary(fit)
     s2 <- summary(fit2)
+    
     # 
     # print(s2$coefficients[1:100])
     # print(s1$coefficients[1:100])
@@ -43,7 +52,11 @@ glmhd <- function(){
     retlist <- list("inf" = inf[1])
     return(retlist)
   }
-  return("N/A")
+  else{
+    print('no MLE')
+    retlist <- list("inf" = "N/A")
+    return(retlist)
+  }
 }
 
 vec <- c()
@@ -52,3 +65,8 @@ for(i in 1:50){
   print(a$inf)
   vec<- c(vec, a$inf)
 }
+print(a)
+print(vec)
+
+
+
