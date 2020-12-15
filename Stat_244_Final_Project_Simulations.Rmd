@@ -85,12 +85,14 @@ sample_gaussian_markov <- function(n=500, p=75) {
 # n, p: number of data points and covariates
 # xdist: either 'gausisan' for gaussian markov chain or 't' for heavy-tailed markov chain.
 # ydist: binomial for logistic response, probit for probit response.
-# signal: non-null covariates equal signal / sqrt(p).
+# signal: non-null covariates equal +/- signal / sqrt(p).
 sample_data_and_fit <- function(n=500, p=100, signal=1, xdist='gaussian', ydist='binomial') {
   # Step 1: Sampling / data generating process
   # Create 50% sparse coefficients
   beta = replicate(p, 0)
+  signs = 1-2*rbinom((p/2), 1, 0.5)
   beta[1:(p/2)] = signal / sqrt(p)
+  beta[1:(p/2)] = beta[1:(p/2)] * signs
   # Sample X data
   if (xdist == 'gaussian') {
     X = sample_gaussian_markov(n=n, p=p)$X
@@ -108,7 +110,7 @@ sample_data_and_fit <- function(n=500, p=100, signal=1, xdist='gaussian', ydist=
   
   # Step 2: Fit regular logistic regression
   fit <- glm(y ~ X + 0, family=binomial, x=TRUE, y=TRUE)
-  return(list(fit=fit))
+  return(list(fit=fit, beta=beta))
 }
 
 # Produces summaries of p values, bias, etc for adjusted vs. regular
@@ -116,74 +118,75 @@ compare_adjusted_versus_regular <- function(nreps=5, ...) {
 
   # We parallelize the adjusted_pval calls on 10 cores  
   # (note this will NOT run on Windows since it uses forking
+  # and I'm not sure if it will run on mac).
   partial_function <- function(seed) {
     set.seed(seed)
-    glm_fit = sample_data_and_fit(...)$fit
+    out = sample_data_and_fit(...)
+    glm_fit = out$fit
+    beta = out$beta
     adjusted_fit = glmhd::adjust_glm(glm_fit)
-    return(list(fit=glm_fit, adjusted_fit=adjusted_fit))
+    return(list(fit=glm_fit, beta=beta, adjusted_fit=adjusted_fit))
   }
 
-  all_fits = list()
-  start_time = proc.time()
-  for (i in 1:nreps) {
-    cat("At time=", proc.time()-start_time, " starting seed=", i, "\n", sep='')
-    all_fits[[i]] = partial_function(i)
-  }
-  #all_fits = parallel::mclapply(1:nreps, partial_function, mc.cores=10)
+  start_time = proc.time()[3]
+  # Use this instead of mcapply fails
+  #for (i in 1:nreps) {
+  #  cat("At time=", proc.time()[3]-start_time, " starting seed=", i, "\n", sep='')
+  #  all_fits[[i]] = partial_function(i)
+  #}
+  all_fits = parallel::mclapply(200:(200+nreps), partial_function, mc.cores=10)
+  cat("Finished at time=", proc.time()[3]-start_time, sep='')
   return(all_fits)
 
 }
 
 # Random number generators
-all_fits = compare_adjusted_versus_regular(nreps=5, signal=5, n=500, p=50)
+all_fits = compare_adjusted_versus_regular(nreps=10, signal=5, n=500, p=100)
 
 ```
 
 
 ```{r}
 
-# Holds all of the data --- sorry this is inelegant,
-# I couldn't think of a better way to do it 
-null_pvals = list()
-adj_null_pvals = list()
-null_coeffs = list()
-nonnull_coeffs = list()
-adj_null_coeffs = list()
-adj_nonnull_coeffs = list()
+# Holds all of the data
+all_data = list()
 
 # Analyze the fits
 for (i in 1:length(all_fits)) {
   # Retrieve
-  glm_fit_summary = summary(all_fits[[i]]$fit)
-  adjusted_fit_summary = summary(all_fits[[i]]$adjusted_fit)
-  p = dim(glm_fit_summary$coefficients)[1]
-
-  # P-values
-  null_pvals[[i]] = glm_fit_summary$coefficients[(p/2 + 1):p, 4]
-  adj_null_pvals[[i]] = adjusted_fit_summary$coefficients[(p/2 + 1):p, 4]
-  
-  # Coefficient values, null and non-null
-  null_coeffs[[i]] = glm_fit_summary$coefficients[(p/2 + 1):p, 1]
-  nonnull_coeffs[[i]] = glm_fit_summary$coefficients[1:(p/2), 1]
-  adj_null_coeffs[[i]] = adjusted_fit_summary$coefficients[(p/2 + 1):p, 1]
-  adj_nonnull_coeffs[[i]] = adjusted_fit_summary$coefficients[1:(p/2), 1]
+  glm_coefs = summary(all_fits[[i]]$fit)$coefficients
+  p = dim(glm_coefs)[1]
+  glm_coefs = data.frame(glm_coefs) %>%
+    rename(std = Std..Error) %>%
+    rename(p.value = Pr...z..)
+  glm_coefs$beta = all_fits[[i]]$beta
+  glm_coefs$variable = 1:p
+  glm_coefs$adj = FALSE
+  all_data[[(2*i)]] = glm_coefs
+  adj_coefs = summary(all_fits[[i]]$adjusted_fit)$coefficients
+  adj_coefs = data.frame(adj_coefs) %>%
+    rename(Estimate = adjusted_mle)
+  adj_coefs$beta = all_fits[[i]]$beta
+  adj_coefs$variable = 1:p
+  adj_coefs$adj = TRUE
+  all_data[[(2*i + 1)]] = adj_coefs
 }
 
-# Process null p-values and plot
-process_data <- function(df, null=TRUE, adj=FALSE) {
-  df = data.frame(t(bind_cols(df))) %>%
-    pivot_longer(cols=everything(), names_to="variable", values_to="p")
-  df$null = null
-  df$adj = ifelse(adj, "Adjusted", "Classical")
-  return(df)
-}
-all_pvals = bind_rows(process_data(adj_null_pvals, adj=TRUE), process_data(null_pvals))
-
-pval_plot <- ggplot(all_pvals %>% filter(variable=='X1'), aes(x=p, color=adj, fill=adj)) +
-  geom_histogram(aes(y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..]), bins=10) +
-  facet_wrap("~adj") +
-  labs(x='p', y='Proportion')
-print(pval_plot)
+all_df = dplyr::bind_rows(all_data) %>%
+  mutate(null = beta == 0)
+ftime = strsplit(as.character(proc.time()[3]), split='.', fixed=TRUE)[[1]][1]
+fname = paste("cache/", ftime, "_results.csv", sep='')
+write.table(all_df, fname, sep=',')
 ```
 
+```{r}
+
+pval_plot <- ggplot(all_df %>% filter(variable==37 | variable == 75), aes(x=p.value, color=adj, fill=adj)) +
+   geom_histogram(aes(y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..]), bins=10) +
+   facet_wrap("null~adj", scales='free') +
+   labs(x='p', y='Proportion')
+print(pval_plot)
+
+# Coefficients
+```
 
