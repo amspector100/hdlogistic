@@ -19,7 +19,8 @@ The `dpCode` directory contains the implementation code of various differentiall
 
 - `244.ipynb`: Data analysis on the output of `244_secom.R`, provides the bulk of the code needed to reproduce Appendix D.
 - `244_secom.R`: Provides the code to run any number of trials of glmhd on the SECOM dataset, following the procedure in Section 5. Currently runs 50 trials, sampling 100 covariates.
-- `Python Plots.ipynb`: Data analysis on the output of `Stat244_Final_Project_Simulations`: Provides the code needed to reproduce Appendices A and C, as well as Figure 6 in Appendix D.  
+- `244_secom_cluster.R`: Conducts hierarchical clustering on the SECOM dataset, clustering the covariates into 150 clusters and conducts LRTs, as described in Section 5. Output is analyzed in `Python Plots.ipynb`.
+- `Python Plots.ipynb`: Data analysis on the output of `Stat244_Final_Project_Simulations.R` and `244_secom_cluster.R`. Provides the code needed to reproduce Appendices A and C, as well as Figure 6 in Appendix D.  
 - `SECOM_analysis.R`: Runs the GLM on the processed SECOM data.
 - `Stat244_Final_Project_Simulations.R`: Includes all R code used to generate data in simulations. Plots kappa, gamma, and h_mle to produce the data needed to reproduce Appendix A. Also writes a general function for sampling covariates and a binary response and then fitting a logistic regression model, following the simulation process in Section 4. Output is analyzed in `Python Plots.ipynb`
 - `h_eq.py`: Python version of [h_eq.R](https://github.com/zq00/glmhd/blob/master/R/h_eq.R) from the original authors. Code combines several R files and executes solve_kappa accurately. 
