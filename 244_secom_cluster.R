@@ -2,6 +2,8 @@ library(glmhd)
 library(tidyverse)
 
 # To start, load data using the "Import Dataset" feature of RStudio.
+# You can load the data from the cache.
+# The data was preprocessed and clustered using the "Some Python Plots" notebook.
 Y <- secomy$V2
 df <- data.frame(x = clusteredX, y=Y)
 fit <- glm(y~., data=df, family=binomial, x=TRUE, y=TRUE)
