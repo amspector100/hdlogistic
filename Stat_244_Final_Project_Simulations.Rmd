@@ -21,8 +21,6 @@ In this section, we plot $\kappa, \gamma, h_{\mathrm{MLE}}$ against each other. 
 # Create grid
 kappa_vals = c(0.05, 0.1, 0.15, 0.2)
 max_gammas = c(15, 9.5, 5, 3) # Hard-coded hmles because it's hard to compute hmle in R
-#kappa_vals = c(0.2)
-#max_gammas = c(4)
 gamma_vals = c(2, 4, 6, 8, 10)
 output = tibble(
   kappa=numeric(),
@@ -57,14 +55,14 @@ for (index in 1:length(kappa_vals)) {
   }
 }
 
-# write.table(output, "cache/param.csv")
 ## See the python notebook for the script plotting based on these values.
+# write.table(output, "cache/param.csv")
 
 ```
 
 ### Simulation Results
 
-We begin by creating a general function for sampling covariates and a binary response and then fitting a logistic regression model. We let $X \sim \mathcal{N}(0, \Sigma)$ where $X$ follows a non-stationary Markov chain. In particular, we can represent $X_1 \sim \mathcal{N}(0, 1)$ and $X_j = \sqrt{1 - \rho_j^2}  Z_j + \rho_j X_{j-1}$ with $Z_j \stackrel{\mathrm{i.i.d.}}{\sim} \mathcal{N}(0,1)$. We sample $\rho_j \stackrel{\mathrm{i.i.d.}}{\sim} \mathrm{Uniform}(0, 1)$.
+We begin by creating a general function for sampling covariates and a binary response and then fitting a logistic regression model. We follow the data-generating process outlined in Section $1$.
 
 
 ```{r}
@@ -184,7 +182,7 @@ compare_adjusted_versus_regular <- function(nreps=5, start=1, ...) {
 }
 ```
 
-Finally, we use this function to save the data so that we don't lose it if RStudio crashses. (These scripts are computationally inteisve, so caching is important!).
+Finally, we use this function to save the data so that we don't lose it if RStudio crashses. (These scripts are computationally intensive, so caching is important!).
 
 ```{r}
 
@@ -248,7 +246,7 @@ for (j in 1:10) {
 # Cache occasionally
 for (j in 1:10) {
   cat("At j=", j)
-  all_fits = compare_adjusted_versus_regular(start=j*100, nreps=40, signal=2, n=500, p=75, xdist='t', ydist='probit')
+  all_fits = compare_adjusted_versus_regular(start=j*100, nreps=40, signal=3, n=500, p=75, xdist='t', ydist='probit')
   save_data(all_fits)
 }
 ```
