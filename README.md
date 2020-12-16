@@ -24,7 +24,6 @@ The `dpCode` directory contains the implementation code of various differentiall
 - `Stat244_Final_Project_Simulations.R`: Includes all R code used to generate data in simulations. Plots kappa, gamma, and h_mle to produce the data needed to reproduce Appendix A. Also writes a general function for sampling covariates and a binary response and then fitting a logistic regression model, following the simulation process in Section 4. Output is analyzed in `Python Plots.ipynb`
 - `h_eq.py`: Python version of [h_eq.R](https://github.com/zq00/glmhd/blob/master/R/h_eq.R) from the original authors. Code combines several R files and executes solve_kappa accurately. 
 - `r_test.R`: Rewriting some of the [h_eq.R](https://github.com/zq00/glmhd/blob/master/R/h_eq.R) file in R.
-- `stat230.ipynb`: Accidentally uploaded to the repo by Aditya
 
 ### Reproducibility
 
