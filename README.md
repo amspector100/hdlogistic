@@ -15,8 +15,6 @@ Logistic Models: Arbitrary Covariance"](https://arxiv.org/pdf/2001.09351.pdf).
 
 ### Algorithm Implementation
 
-The `dpCode` directory contains the implementation code of various differentially private mean estimation algorithms.
-
 - `244.ipynb`: Data analysis on the output of `244_secom.R`, provides the bulk of the code needed to reproduce Appendix D.
 - `244_secom.R`: Provides the code to run any number of trials of glmhd on the SECOM dataset, following the procedure in Section 5. Currently runs 50 trials, sampling 100 covariates.
 - `244_secom_cluster.R`: Conducts hierarchical clustering on the SECOM dataset, clustering the covariates into 150 clusters and conducts LRTs, as described in Section 5. Output is analyzed in `Python Plots.ipynb`.
